@@ -1,100 +1,186 @@
-import Image from "next/image";
+"use client";
+
+import React, { useEffect, useState } from "react";
+import NoteList from "@/components/NoteList";
+import NoteModal from "@/components/NoteModal";
+import ConfirmDialog from "@/components/ConfirmDialog";
+
+// You might want to adjust this backend URL if deploying separately
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
+export type Note = {
+  id: number;
+  title: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+};
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [deleteNoteId, setDeleteNoteId] = useState<number | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+  // Fetch notes from backend
+  const fetchNotes = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BACKEND_URL}/notes`);
+      if (!res.ok) throw new Error("Failed to fetch notes");
+      const data = await res.json();
+      setNotes(data);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setError(e.message ?? "Error fetching notes");
+      } else {
+        setError("Error fetching notes");
+      }
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchNotes();
+  }, []);
+
+  // Modal handlers
+  const handleOpenCreate = () => {
+    setEditingNote(null);
+    setModalOpen(true);
+  };
+
+  const handleOpenEdit = (note: Note) => {
+    setEditingNote(note);
+    setModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setEditingNote(null);
+  };
+
+  // CRUD actions
+  const handleCreateNote = async (title: string, content: string) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.detail || "Failed to create note");
+      }
+      handleCloseModal();
+      fetchNotes();
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        alert(e.message ?? "Error creating note");
+      } else {
+        alert("Error creating note");
+      }
+    }
+  };
+
+  const handleEditNote = async (id: number, title: string, content: string) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/notes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.detail || "Failed to update note");
+      }
+      handleCloseModal();
+      fetchNotes();
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        alert(e.message ?? "Error updating note");
+      } else {
+        alert("Error updating note");
+      }
+    }
+  };
+
+  const handleRequestDelete = (id: number) => {
+    setDeleteNoteId(id);
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteNoteId(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (deleteNoteId == null) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/notes/${deleteNoteId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete note");
+      setDeleteNoteId(null);
+      fetchNotes();
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        alert(e.message ?? "Error deleting note");
+      } else {
+        alert("Error deleting note");
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)] flex flex-col">
+      <header className="flex items-center justify-between px-4 py-6 shadow-sm bg-white/80 dark:bg-[#101014]/90 sticky top-0 z-10">
+        <h1 className="text-2xl font-bold tracking-tight text-[color:var(--primary,#1976d2)]">
+          📝 Personal Notes
+        </h1>
+        <button
+          onClick={handleOpenCreate}
+          className="bg-[color:var(--primary,#1976d2)] hover:bg-[color:var(--accent,#ffca28)] transition text-white hover:text-black font-medium py-2 px-4 rounded-full shadow"
+          style={{
+            background: "var(--primary,#1976d2)",
+            color: "var(--background,#ffffff)",
+          }}
+        >
+          + New Note
+        </button>
+      </header>
+
+      <main className="flex-1 max-w-4xl mx-auto w-full p-6 sm:p-8">
+        {loading && <div className="text-center py-10 text-lg">Loading notes…</div>}
+        {error && <div className="text-center text-red-500 my-4">{error}</div>}
+        {!loading && (
+          <NoteList
+            notes={notes}
+            onEdit={handleOpenEdit}
+            onDelete={handleRequestDelete}
+          />
+        )}
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      <NoteModal
+        open={modalOpen}
+        note={editingNote}
+        onClose={handleCloseModal}
+        onCreate={handleCreateNote}
+        onEdit={handleEditNote}
+      />
+
+      <ConfirmDialog
+        open={deleteNoteId != null}
+        message="Are you sure you want to delete this note?"
+        onClose={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
+      />
+
+      <footer className="text-xs text-gray-400 text-center py-3">
+        &copy; {new Date().getFullYear()} Personal Notes App &mdash; Next.js + FastAPI Demo
       </footer>
     </div>
   );
